@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import argparse
 
 class SequenceAligner:
     def __init__(self, match_score=1, mismatch_score=-1, gap_penalty=-1):
@@ -33,13 +34,11 @@ class SequenceAligner:
                     self.sequences.append(sequence)
                 
         except FileNotFoundError:
-            print(f"Error: The file {filename} could not be found. Please check the path")
-        except PermissionError:
-            print(f"Error: You do not have permission to read the file {filename}.")
-        except IsADirectoryError:
-            print(f"Error: The path {filename} points to a directory, not a file")
+            print(f"Error: The file '{filename}' could not be found.")
+            sys.exit(1)
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            print(f"An unexpected error occurred while reading the file: {e}")
+            sys.exit(1)
 
     def load_substitution_matrix(self, filepath):
         self.substitution_matrix = {}
@@ -62,12 +61,18 @@ class SequenceAligner:
                     for i, score in enumerate(scores):
                         col_aa = amino_acids[i]
                         self.substitution_matrix[current_aa][col_aa] = score
-            print(f"Successfully loaded substitution matrix from {filepath}\n")
+            print(f"[Info] Successfully loaded substitution matrix from '{filepath}'")
+        except FileNotFoundError:
+            print(f"Error: Substitution matrix file '{filepath}' not found.")
+            sys.exit(1)
         except Exception as e:
-            print(f"Error loading matrix: {e}\n")
-            self.substitution_matrix = None
+            print(f"Error loading matrix: {e}")
+            sys.exit(1)
 
     def identify_sequence_type(self, sequence):
+        if not sequence:
+            return "Empty"
+            
         seq = sequence.upper()
         unique_chars = set(seq)
         dna_chars = set("ACGTN")
@@ -186,83 +191,94 @@ class SequenceAligner:
             
         return align1[::-1], align2[::-1], max_score
 
-    def align(self, algorithm="needleman_wunsch"):
+    def align(self, algorithm="nw"):
         if len(self.sequences) < 2:
-            print("Error: The loaded data does not contain at least two sequences.")
-            return None
+            print("Error: The loaded data must contain at least two sequences.")
+            sys.exit(1)
 
         seq1, seq2 = self.sequences[0], self.sequences[1]
         header1, header2 = self.headers[0], self.headers[1]
 
+        # 1. Length/Memory safety check (Warns if matrix cells > 16 million)
+        if len(seq1) * len(seq2) > 16000000:
+            print(f"[Warning] Sequences are very long ({len(seq1)} and {len(seq2)} chars).")
+            print("This may consume a large amount of memory and take a long time to compute.\n")
+
+        # 2. Sequence Type Validation
         type1 = self.identify_sequence_type(seq1)
         type2 = self.identify_sequence_type(seq2)
 
-        print(f"Sequence 1 ({type1}): {header1}")
-        print(f"Sequence 2 ({type2}): {header2}")
-        print("-" * 30)
+        print(f"Seq 1 ({type1}): {header1[:50]}... ({len(seq1)} bp/aa)")
+        print(f"Seq 2 ({type2}): {header2[:50]}... ({len(seq2)} bp/aa)")
+        print("-" * 50)
 
-        if type1 == "Junk/Invalid" or type2 == "Junk/Invalid":
-            print("Error: Cannot align. One or both sequences contain invalid characters.")
-            return None
+        if type1 in ["Junk/Invalid", "Empty"] or type2 in ["Junk/Invalid", "Empty"]:
+            print("Error: Cannot align. One or both sequences are empty or contain invalid characters.")
+            sys.exit(1)
             
         if type1 != type2:
-            print(f"Warning: Aligning {type1} with {type2} is unusual, but proceeding...\n")
+            print(f"[Warning] Aligning {type1} with {type2} is unusual, but proceeding...\n")
         else:
             print(f"Proceeding to align two {type1} sequences...\n")
 
-        if algorithm == "needleman_wunsch":
+        # 3. Execution
+        if algorithm == "nw":
             print("Running Needleman-Wunsch (Global Alignment)...")
             aligned_1, aligned_2, score = self.needleman_wunsch(seq1, seq2)
-        elif algorithm == "smith_waterman":
+        elif algorithm == "sw":
             print("Running Smith-Waterman (Local Alignment)...")
             aligned_1, aligned_2, score = self.smith_waterman(seq1, seq2)
-        else:
-            print(f"Error: Unknown algorithm '{algorithm}'")
-            return None
 
         self.print_alignment(seq1, seq2, aligned_1, aligned_2, score)
         return aligned_1, aligned_2, score
 
-    def print_alignment(self, seq1, seq2, align1, align2, score):
-        print(f"Alignment Score: {score}")
-        print("-" * 30)
-        print(align1)
+    def print_alignment(self, seq1, seq2, align1, align2, score, line_length=60):
+        print(f"\nFinal Alignment Score: {score}")
+        print("=" * 60)
+        
+        # Build the match line
         match_line = "".join("|" if a1 == a2 and a1 != "-" else " " for a1, a2 in zip(align1, align2))
-        print(match_line)
-        print(align2)
-        print("-" * 30)
+        
+        # Print in chunks for readability
+        for i in range(0, len(align1), line_length):
+            chunk1 = align1[i:i+line_length]
+            chunk_match = match_line[i:i+line_length]
+            chunk2 = align2[i:i+line_length]
+            
+            print(f"S1: {chunk1}")
+            print(f"    {chunk_match}")
+            print(f"S2: {chunk2}\n")
+        print("=" * 60)
 
 
-# --- Command Line Interface ---
+# --- Professional Command Line Interface ---
 if __name__ == "__main__":
-    # Check if the user provided enough arguments
-    if len(sys.argv) < 2:
-        print("Usage: ./align.py <filename> [algorithm]")
-        print("Algorithms: needleman_wunsch (default), smith_waterman")
-        sys.exit(1)
-
-    # First argument is the FASTA file
-    fasta_file = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Pairwise Sequence Aligner (Needleman-Wunsch & Smith-Waterman)")
     
-    # Second argument is the algorithm (defaulting to Needleman-Wunsch)
-    algorithm_choice = "needleman_wunsch"
-    if len(sys.argv) >= 3:
-        # Convert to lowercase and replace hyphens with underscores to match method names
-        algorithm_choice = sys.argv[2].lower().replace("-", "_")
+    # Required Arguments
+    parser.add_argument("fasta", help="Path to the input FASTA file containing at least 2 sequences.")
+    
+    # Optional Algorithm Choice
+    parser.add_argument("-a", "--algorithm", choices=['nw', 'sw'], default='nw', 
+                        help="Algorithm to use: 'nw' (Global) or 'sw' (Local). Default is 'nw'.")
+    
+    # Optional Substitution Matrix
+    parser.add_argument("-x", "--matrix", help="Path to a substitution matrix file (e.g., blosum62.txt) for proteins.")
+    
+    # Optional Custom Scoring Parameters
+    parser.add_argument("--match", type=int, default=2, help="Score for a match (default: 2)")
+    parser.add_argument("--mismatch", type=int, default=-1, help="Penalty for a mismatch (default: -1)")
+    parser.add_argument("--gap", type=int, default=-2, help="Penalty for a gap (default: -2)")
 
-    # Validate algorithm choice
-    if algorithm_choice not in ["needleman_wunsch", "smith_waterman"]:
-        print(f"Error: Unknown algorithm '{algorithm_choice}'.")
-        print("Please choose either 'needleman_wunsch' or 'smith_waterman'.")
-        sys.exit(1)
+    args = parser.parse_args()
 
-    # Initialize the aligner
-    aligner = SequenceAligner(match_score=2, mismatch_score=-1, gap_penalty=-2)
+    # Initialize the aligner with custom or default arguments
+    aligner = SequenceAligner(match_score=args.match, mismatch_score=args.mismatch, gap_penalty=args.gap)
 
-    # Optional: If you want to automatically load BLOSUM62 for proteins, 
-    # you can uncomment the line below and ensure the file is in the same directory.
-    # aligner.load_substitution_matrix("blosum62.txt")
+    # Load matrix if provided
+    if args.matrix:
+        aligner.load_substitution_matrix(args.matrix)
 
-    # Load the file and execute the alignment
-    aligner.load(fasta_file)
-    aligner.align(algorithm=algorithm_choice)
+    # Load the FASTA file and execute
+    aligner.load(args.fasta)
+    aligner.align(algorithm=args.algorithm)
