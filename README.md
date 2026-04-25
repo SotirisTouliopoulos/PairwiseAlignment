@@ -29,3 +29,22 @@ https://en.wikipedia.org/wiki/Needleman%E2%80%93Wunsch_algorithm
 https://books.google.dk/books?id=bvY21DGa1OwC&pg=PA87&lpg=PA87&dq=smith-waterman&source=web&ots=gJTIZXMkqv&sig=AO0TtuhrNFaH0ZuKIg2TUXHmqww&hl=en#v=onepage&q=smith-waterman&f=false
 https://en.wikipedia.org/wiki/BLOSUM
 https://en.wikipedia.org/wiki/Point_accepted_mutation
+
+
+
+# Installation
+
+### Install package dependencies
+```
+pip install pytest
+```
+
+### Install package
+```
+pip install -e .
+```
+
+# Uninstall package
+```
+pip uninstall PairwiseAlignment
+```
