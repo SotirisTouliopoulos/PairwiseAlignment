@@ -34,16 +34,19 @@ https://en.wikipedia.org/wiki/Point_accepted_mutation
 
 # Installation
 
-### Install package dependencies
+### Create a virtual environment (conda, venv, or similar)
 ```
-pip install pytest
+conda create -n PairwiseAlignment python=3.11.13
+conda activate PairwiseAlignment
 ```
 
 ### Install package
 ```
+git clone https://github.com/SotirisTouliopoulos/PairwiseAlignment
+cd PairwiseAlignment
+pip install pytest
 pip install -e .
 ```
-
 # Uninstall package
 ```
 pip uninstall PairwiseAlignment
