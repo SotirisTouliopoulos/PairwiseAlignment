@@ -55,7 +55,5 @@ def test_mismatch_default_nw_score():
 def test_edge_empty_like_reports_error_message():
     res = run_cli("edge_empty_like.fasta")
 
-    # Your script prints an error message. Some scripts still return 0, others non-zero.
-    # So we assert on output text instead of forcing return code.
     combined = f"{res.stdout}\n{res.stderr}"
     assert "Error: Cannot align. One or both sequences are empty or contain invalid characters." in combined
